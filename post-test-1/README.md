@@ -23,6 +23,7 @@ Berfungsi menyimpan data user dan menangani logika interaksi.
 - Method Utama: `konsultasi_daya(self, objek_iem)`. Ini adalah Instance Method di mana objek pelanggan membandingkan spesifikasi perangkatnya dengan nilai impedansi dari objek IEM yang dilempar sebagai parameter.
 
 Panduan Pengujian
+
 Untuk menguji program ini, jalankan langsung file Python di terminal dengan command `python nama_file_kamu.py`. Pada bagian bawah program akan menghasilkan output berdasarkan pengujian, dengan urutan pengujian:
 - Uji Instance Method (Katalog & Konsultasi)
   Fungsi `tampilkan_info()` dipanggil untuk mencetak ringkasan seluruh produk di katalog. Setelah itu, Pelanggan bernama Hammam dan Syamil melakukan simulasi `konsultasi_daya()`. Hammam mengecek kecocokan IEM Kinera (ringan) yang berhasil, sedangkan Syamil mengecek IEM Sennheiser (berat) dan sistem merespons dengan saran untuk membeli DAC tambahan.
