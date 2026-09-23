@@ -1,6 +1,3 @@
- Posttest 1 PBO: Sistem Toko Audio & Konsultasi (IEM & DAC)
-
- Penjelasan Program
 Program ini adalah simulasi sederhana dari sistem manajemen di toko perangkat audio high-fidelity. Program dibuat menggunakan bahasa Python. Fitur utamanya bukan sekadar menyimpan data barang (IEM dan DAC), tetapi juga memiliki fitur Konsultasi Daya. Di sini, objek pelanggan dapat berinteraksi dengan objek IEM untuk mengecek apakah spesifikasi (Impedansi/Ohm) dari IEM tersebut cocok untuk dicolok langsung ke HP/Laptop pelanggan, atau butuh amplifier (DAC) tambahan.
 
  Struktur Class
