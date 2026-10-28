@@ -1,5 +1,5 @@
+import hashlib
 from abc import ABC, abstractmethod
-from getpass import getpass
 
 
 def rupiah(angka):
@@ -226,6 +226,40 @@ class Amplifier(Produk):
         return f"Amplifier {self.daya_mw}mW cocok untuk headphone dan IEM berimpedansi tinggi."
 
 
+class Akun(ABC):
+    peran = "akun"
+
+    def __init__(self, username, password):
+        self._username = username
+        self.__password_hash = Akun.hash_password(password)
+
+    @staticmethod
+    def hash_password(password):
+        return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+    @property
+    def username(self):
+        return self._username
+
+    def cek_password(self, password):
+        return self.__password_hash == Akun.hash_password(password)
+
+    @abstractmethod
+    def sapa(self):
+        pass
+
+
+class Admin(Akun):
+    peran = "admin"
+
+    def __init__(self, username, password, level_akses="Super Admin"):
+        super().__init__(username, password)
+        self.level_akses = level_akses
+
+    def sapa(self):
+        return f"Selamat bertugas, {self._username}! Level akses: {self.level_akses}."
+
+
 class Keranjang:
     def __init__(self):
         self.__daftar_produk = []
@@ -294,12 +328,14 @@ class Toko:
         return len(self.__katalog)
 
 
-class Pelanggan:
+class Pelanggan(Akun):
+    peran = "user"
     total_pelanggan = 0
     diskon_member = 0.10
     level_member_default = "Reguler"
 
-    def __init__(self, nama, perangkat_pemutar, saldo):
+    def __init__(self, username, password, nama, perangkat_pemutar, saldo):
+        super().__init__(username, password)
         self.nama = nama
         self.perangkat_pemutar = perangkat_pemutar
         self.__saldo = saldo
@@ -326,6 +362,9 @@ class Pelanggan:
             print(f"[Validasi Gagal] Saldo {self.nama} tidak boleh negatif!")
         else:
             self.__saldo = nilai_baru
+
+    def sapa(self):
+        return f"Halo, {self.nama}! Saldo Anda {rupiah(self.__saldo)}."
 
     def isi_saldo(self, jumlah):
         if jumlah <= 0:
@@ -375,6 +414,36 @@ class Pelanggan:
         return f"Pelanggan {self.nama}: saldo {rupiah(self.__saldo)}, {len(self.keranjang)} item di keranjang"
 
 
+class LayananAkun:
+    def __init__(self):
+        self.__akun = {}
+
+    def username_tersedia(self, username):
+        return username not in self.__akun
+
+    def daftarkan(self, akun):
+        if not self.username_tersedia(akun.username):
+            return False
+        self.__akun[akun.username] = akun
+        return True
+
+    def masuk(self, peran, username, password):
+        akun = self.__akun.get(username)
+        if akun is not None and akun.peran == peran and akun.cek_password(password):
+            return akun
+        return None
+
+    def hitung_peran(self, peran):
+        return sum(1 for akun in self.__akun.values() if akun.peran == peran)
+
+    def ringkasan(self):
+        return (f"Layanan akun: {len(self)} akun terdaftar "
+                f"({self.hitung_peran('user')} pelanggan, {self.hitung_peran('admin')} admin)")
+
+    def __len__(self):
+        return len(self.__akun)
+
+
 JENIS_PRODUK = {"1": IEM, "2": DAC, "3": Amplifier}
 
 
@@ -391,6 +460,28 @@ def buat_toko_awal():
     toko.tambah_produk(DAC.buat_dari_string("Moondrop,DawnPro,800000,4,650000,120,USB-C"))
     toko.tambah_produk(Amplifier("Topping", "L30II", 1600000, 3, 1300000, 1000, "Class AB"))
     return toko
+
+
+def tampilkan_menu(judul, menu, label_keluar):
+    print("\n" + "=" * 40)
+    print(f"{judul:^40}")
+    print("=" * 40)
+    for nomor, (label, _) in menu.items():
+        print(f"{nomor:>2}. {label}")
+    print(f" 0. {label_keluar}")
+
+
+def jalankan_menu(judul, menu, label_keluar, *argumen):
+    while True:
+        tampilkan_menu(judul, menu, label_keluar)
+        pilihan = input("Pilih menu: ").strip()
+        if pilihan == "0":
+            return
+        aksi = menu.get(pilihan)
+        if aksi is None:
+            print("Menu tidak tersedia, silakan pilih lagi.")
+            continue
+        aksi[1](*argumen)
 
 
 def pilih_produk(toko):
@@ -454,35 +545,16 @@ def menu_isi_saldo(toko, pelanggan):
     pelanggan.isi_saldo(baca_angka("Jumlah isi saldo (Rp): "))
 
 
-def menu_ringkasan(toko, pelanggan):
+def menu_ringkasan_pelanggan(toko, pelanggan):
     print("\n=== RINGKASAN ===")
     cetak_ringkasan(toko, pelanggan.keranjang, pelanggan)
 
 
-PIN_ADMIN = "123456"
-MAKS_PERCOBAAN_PIN = 3
-
-
-def menu_arsitektur(toko):
-    print("\n=== INFO ARSITEKTUR PROGRAM ===")
-    print("Produk adalah abstract class. Mencoba membuat objek Produk langsung:")
-    try:
-        Produk("Merk", "Model", 1000, 1, 500)
-    except TypeError as galat:
-        print(f"TypeError: {galat}")
-    print("\nAbstract method pada Produk:", ", ".join(sorted(Produk.__abstractmethods__)))
-    print("Subclass dan status implementasinya:")
-    for kelas in Produk.__subclasses__():
-        kurang = sorted(kelas.__abstractmethods__)
-        status = "lengkap, bisa dibuat objeknya" if not kurang else "belum lengkap: " + ", ".join(kurang)
-        print(f"   {kelas.__name__:<10}: {status}")
-
-
-def admin_lihat_katalog(toko):
+def admin_katalog(toko, layanan):
     toko.tampilkan_katalog()
 
 
-def admin_tambah_produk(toko):
+def admin_tambah_produk(toko, layanan):
     print("\nJenis produk yang bisa ditambahkan:")
     for nomor, kelas in JENIS_PRODUK.items():
         print(f"   {nomor}. {kelas.kategori}")
@@ -495,28 +567,28 @@ def admin_tambah_produk(toko):
     print(f"[Berhasil] {produk.merk} {produk.nama_model} masuk katalog. Total produk di toko: {len(toko)}.")
 
 
-def admin_ubah_stok(toko):
+def admin_ubah_stok(toko, layanan):
     toko.tampilkan_katalog()
     produk = pilih_produk(toko)
     if produk is not None:
         produk.stok = baca_angka("Stok baru: ")
 
 
-def admin_ubah_harga(toko):
+def admin_ubah_harga(toko, layanan):
     toko.tampilkan_katalog()
     produk = pilih_produk(toko)
     if produk is not None:
         produk.harga = baca_angka("Harga baru (Rp): ")
 
 
-def admin_promo(toko):
+def admin_promo(toko, layanan):
     toko.tampilkan_katalog()
     produk = pilih_produk(toko)
     if produk is not None:
         produk.terapkan_promo(baca_angka("Persentase promo (%): ") / 100)
 
 
-def admin_diskon_member(toko):
+def admin_diskon_member(toko, layanan):
     persen = baca_angka("Diskon member baru (0-50 %): ")
     if 0 <= persen <= 50:
         Pelanggan.ubah_diskon_member(persen / 100)
@@ -524,12 +596,17 @@ def admin_diskon_member(toko):
         print("[Gagal] Diskon harus antara 0 sampai 50 persen.")
 
 
-def admin_laporan(toko):
+def admin_laporan(toko, layanan):
     print("\n=== LAPORAN MARGIN & BIAYA SERVIS ===")
     for produk in toko.daftar_produk:
         print(f"{produk.kategori:<10}{produk.nama_model:<15} margin {rupiah(produk.hitung_margin()):<12} servis {rupiah(produk.hitung_biaya_servis())}")
     print(f"Total estimasi biaya servis seluruh produk: {rupiah(toko.total_biaya_servis())}")
     print(f"Jumlah produk terdaftar (counter class)   : {Produk.total_produk}")
+
+
+def admin_ringkasan(toko, layanan):
+    print("\n=== RINGKASAN TOKO & AKUN ===")
+    cetak_ringkasan(toko, layanan)
 
 
 MENU_PELANGGAN = {
@@ -540,80 +617,103 @@ MENU_PELANGGAN = {
     "5": ("Lihat keranjang", menu_lihat_keranjang),
     "6": ("Checkout", menu_checkout),
     "7": ("Isi saldo", menu_isi_saldo),
-    "8": ("Ringkasan toko & akun", menu_ringkasan),
+    "8": ("Ringkasan toko & akun", menu_ringkasan_pelanggan),
 }
 
 MENU_ADMIN = {
-    "1": ("Lihat katalog", admin_lihat_katalog),
+    "1": ("Lihat katalog", admin_katalog),
     "2": ("Tambah produk baru", admin_tambah_produk),
     "3": ("Ubah stok produk", admin_ubah_stok),
     "4": ("Ubah harga produk", admin_ubah_harga),
     "5": ("Terapkan promo", admin_promo),
     "6": ("Ubah diskon member", admin_diskon_member),
     "7": ("Laporan margin & servis", admin_laporan),
-    "8": ("Info arsitektur program", menu_arsitektur),
+    "8": ("Ringkasan toko & akun", admin_ringkasan),
 }
 
 
-def jalankan_menu(judul, daftar_menu, label_keluar, *argumen):
+def sesi_pelanggan(pelanggan, toko, layanan):
+    print(pelanggan.sapa())
+    jalankan_menu("MENU PELANGGAN", MENU_PELANGGAN, "Logout", toko, pelanggan)
+    print(f"{pelanggan.username} telah logout.")
+
+
+def sesi_admin(admin, toko, layanan):
+    print(admin.sapa())
+    jalankan_menu("MENU ADMIN", MENU_ADMIN, "Logout", toko, layanan)
+    print(f"{admin.username} telah logout.")
+
+
+SESI = {"user": sesi_pelanggan, "admin": sesi_admin}
+
+
+def baca_username_baru(layanan):
     while True:
-        print("\n" + "=" * 40)
-        print(f"{judul:^40}")
-        print("=" * 40)
-        for nomor, (label, _) in daftar_menu.items():
-            print(f"{nomor:>2}. {label}")
-        print(f" 0. {label_keluar}")
-        pilihan = input("Pilih menu: ").strip()
-        if pilihan == "0":
-            return
-        aksi = daftar_menu.get(pilihan)
-        if aksi is None:
-            print("Menu tidak tersedia, silakan pilih lagi.")
+        username = baca_teks("Username (min 4 karakter, tanpa spasi): ").lower()
+        if len(username) < 4 or " " in username:
+            print("[Gagal] Username minimal 4 karakter dan tidak boleh mengandung spasi.")
+        elif not layanan.username_tersedia(username):
+            print("[Gagal] Username sudah dipakai, pilih yang lain.")
+        else:
+            return username
+
+
+def baca_password_baru():
+    while True:
+        password = baca_teks("Password (min 6 karakter)              : ")
+        if len(password) < 6:
+            print("[Gagal] Password minimal 6 karakter.")
             continue
-        aksi[1](*argumen)
+        if baca_teks("Ulangi password                         : ") != password:
+            print("[Gagal] Password tidak sama, ulangi.")
+            continue
+        return password
 
 
-def verifikasi_admin():
-    for percobaan in range(1, MAKS_PERCOBAAN_PIN + 1):
-        if getpass("PIN admin: ") == PIN_ADMIN:
-            return True
-        print(f"[Gagal] PIN salah ({percobaan}/{MAKS_PERCOBAAN_PIN}).")
-    return False
+def menu_register(toko, layanan):
+    print("\n=== REGISTRASI AKUN PELANGGAN ===")
+    username = baca_username_baru(layanan)
+    password = baca_password_baru()
+    nama = baca_teks("Nama lengkap                            : ")
+    perangkat = baca_teks("Perangkat pemutar (HP/Laptop)          : ")
+    saldo = baca_angka("Saldo awal (Rp)                        : ", 0)
+    layanan.daftarkan(Pelanggan(username, password, nama, perangkat, saldo))
+    print(f"[Berhasil] Akun '{username}' terdaftar. Silakan login sebagai user.")
 
 
-def sesi_pelanggan(toko):
-    print("\n--- Login Pelanggan ---")
-    nama = baca_teks("Nama Anda                     : ")
-    perangkat = baca_teks("Perangkat pemutar (HP/Laptop): ")
-    saldo = baca_angka("Saldo awal (Rp)               : ", 0)
-
-    pelanggan = Pelanggan(nama, perangkat, saldo)
-    print(f"\nHalo, {pelanggan.nama}! Selamat berbelanja.")
-    jalankan_menu(f"MENU PELANGGAN - {pelanggan.nama.upper()}", MENU_PELANGGAN, "Logout", toko, pelanggan)
-    print(f"Sampai jumpa, {pelanggan.nama}!")
-
-
-def sesi_admin(toko):
-    print("\n--- Login Admin ---")
-    if not verifikasi_admin():
-        print("Akses admin ditolak.")
+def menu_login(toko, layanan):
+    print("\n=== LOGIN ===")
+    peran = baca_teks("Login sebagai (admin/user): ").lower()
+    sesi = SESI.get(peran)
+    if sesi is None:
+        print("[Gagal] Peran tidak dikenal. Ketik admin atau user.")
         return
-    print("Login admin berhasil.")
-    jalankan_menu("MENU ADMIN", MENU_ADMIN, "Logout", toko)
-    print("Admin telah logout.")
+    for sisa in range(2, -1, -1):
+        username = baca_teks("Username: ").lower()
+        password = baca_teks("Password: ")
+        akun = layanan.masuk(peran, username, password)
+        if akun is not None:
+            print(f"[Berhasil] Login sebagai {peran}.")
+            sesi(akun, toko, layanan)
+            return
+        print(f"[Gagal] Username atau password salah. Sisa percobaan: {sisa}.")
+    print("Terlalu banyak percobaan gagal. Kembali ke menu awal.")
 
 
-MENU_PERAN = {
-    "1": ("Masuk sebagai Pelanggan", sesi_pelanggan),
-    "2": ("Masuk sebagai Admin", sesi_admin),
+MENU_AWAL = {
+    "1": ("Login", menu_login),
+    "2": ("Register akun baru", menu_register),
 }
 
 
 def main():
-    print(f"=== Selamat Datang di {Produk.nama_toko} ===")
     toko = buat_toko_awal()
-    jalankan_menu(Produk.nama_toko.upper(), MENU_PERAN, "Keluar program", toko)
-    print("Terima kasih, program selesai.")
+    layanan = LayananAkun()
+    layanan.daftarkan(Admin("admin", "admin123"))
+
+    print(f"=== Selamat Datang di {Produk.nama_toko} ===")
+    jalankan_menu(Produk.nama_toko.upper(), MENU_AWAL, "Keluar", toko, layanan)
+    print("Terima kasih telah berkunjung!")
 
 
 if __name__ == "__main__":
